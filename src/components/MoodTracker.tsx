@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, RefreshCw, Sparkles } from 'lucide-react';
 import {
   CartesianGrid,
   Line,
@@ -150,6 +150,10 @@ export function MoodTracker({
   const [savedToast, setSavedToast] = useState(false);
   const [filterMood, setFilterMood] = useState<MoodKey | 'all'>('all');
 
+  const [monthlySummary, setMonthlySummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   useEffect(() => {
     if (existingLog) {
       setSelectedMood(existingLog.mood);
@@ -238,6 +242,84 @@ export function MoodTracker({
       setSavedToast(true);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const currentMonthPrefix = todayKey.slice(0, 7);
+  const currentMonthLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    [],
+  );
+
+  const currentMonthRecords = useMemo(() => {
+    const byDate = new Map<
+      string,
+      {
+        dateKey: string;
+        mood: MoodKey;
+        title?: string;
+        note?: string;
+        excerpt?: string;
+      }
+    >();
+
+    for (const entry of entries) {
+      if (!entry.dateKey.startsWith(currentMonthPrefix)) continue;
+      if (!byDate.has(entry.dateKey)) {
+        byDate.set(entry.dateKey, {
+          dateKey: entry.dateKey,
+          mood: entry.mood,
+          title: entry.title,
+          excerpt: entry.plainText.slice(0, 300),
+        });
+      }
+    }
+
+    for (const log of moodLogs) {
+      if (!log.dateKey.startsWith(currentMonthPrefix)) continue;
+      const existing = byDate.get(log.dateKey);
+      byDate.set(log.dateKey, {
+        dateKey: log.dateKey,
+        mood: log.mood,
+        title: existing?.title,
+        note: log.note || undefined,
+        excerpt: existing?.excerpt,
+      });
+    }
+
+    return Array.from(byDate.values()).sort((a, b) =>
+      a.dateKey.localeCompare(b.dateKey),
+    );
+  }, [entries, moodLogs, currentMonthPrefix]);
+
+  const handleAnalyzeMonth = async () => {
+    if (currentMonthRecords.length === 0 || isSummarizing) return;
+    setIsSummarizing(true);
+    setSummaryError(null);
+    try {
+      const response = await fetch('/api/mood-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthLabel: currentMonthLabel,
+          records: currentMonthRecords,
+        }),
+      });
+      const data = (await response.json()) as { summary?: string; error?: string };
+      if (!response.ok || !data.summary) {
+        throw new Error(data.error || 'Unable to generate monthly summary.');
+      }
+      setMonthlySummary(data.summary);
+    } catch (err) {
+      setSummaryError(
+        err instanceof Error ? err.message : 'Unable to generate monthly summary.',
+      );
+    } finally {
+      setIsSummarizing(false);
     }
   };
 
@@ -524,6 +606,72 @@ export function MoodTracker({
                 />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        )}
+      </section>
+
+      {/* Monthly Emotional Pattern Summary (Gemini) */}
+      <section
+        aria-label="Monthly emotional pattern summary"
+        className="rounded-3xl bg-[#1f1712]/94 border border-[#d99b52]/18 p-6 sm:p-7"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-display text-xl text-[#f7efe0]">
+              {currentMonthLabel} Emotional Summary
+            </h3>
+            <p className="text-xs text-[#9e8d78] mt-1 font-mono tabular-nums">
+              {currentMonthRecords.length}{' '}
+              {currentMonthRecords.length === 1 ? 'recorded evening' : 'recorded evenings'}{' '}
+              this month
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={isSummarizing || currentMonthRecords.length === 0}
+            onClick={() => void handleAnalyzeMonth()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#d99b52] text-[#1a110b] text-xs sm:text-sm font-semibold hover:bg-[#e5a860] disabled:opacity-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            {monthlySummary ? (
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isSummarizing ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            <span>
+              {isSummarizing
+                ? 'Reading this month…'
+                : monthlySummary
+                  ? 'Refresh Summary'
+                  : 'Analyze Month'}
+            </span>
+          </button>
+        </div>
+
+        {summaryError && (
+          <div className="mb-4 rounded-xl bg-[#40201a] border border-[#c97b63]/40 px-4 py-3 text-xs text-[#f2c8bc]">
+            {summaryError}
+          </div>
+        )}
+
+        {currentMonthRecords.length === 0 ? (
+          <div className="rounded-2xl bg-[#17110d] border border-[#d99b52]/10 px-5 py-6">
+            <p className="text-sm text-[#a89782]">
+              No moods or journal entries recorded in {currentMonthLabel} yet. Add an evening check-in above to generate a monthly reflection.
+            </p>
+          </div>
+        ) : monthlySummary ? (
+          <div className="rounded-2xl bg-[#18120e] border border-[#d99b52]/14 px-5 py-5 text-sm sm:text-[15px] text-[#ebe0cd] leading-relaxed whitespace-pre-line">
+            {monthlySummary}
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-[#17110d] border border-[#d99b52]/10 px-5 py-6">
+            <p className="text-sm text-[#b9a791] leading-relaxed">
+              Generate a calm narrative overview of your recurring moods, shifts, and themes across {currentMonthLabel}.
+            </p>
           </div>
         )}
       </section>

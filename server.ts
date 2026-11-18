@@ -133,6 +133,79 @@ async function startServer(): Promise<void> {
     }
   });
 
+  app.post('/api/mood-summary', async (req: Request, res: Response) => {
+    try {
+      const body = req.body as {
+        monthLabel?: string;
+        records?: {
+          dateKey?: string;
+          mood?: string;
+          title?: string;
+          note?: string;
+          excerpt?: string;
+        }[];
+      };
+
+      const monthLabel =
+        typeof body?.monthLabel === 'string' && body.monthLabel.trim()
+          ? body.monthLabel.trim().slice(0, 60)
+          : 'this month';
+
+      const records = Array.isArray(body?.records)
+        ? body.records
+            .filter((r) => r && typeof r.dateKey === 'string' && typeof r.mood === 'string')
+            .slice(0, 45)
+        : [];
+
+      if (records.length === 0) {
+        res.status(400).json({
+          error: 'Log at least one mood check-in or journal entry this month to generate a summary.',
+        });
+        return;
+      }
+
+      const timelineText = records
+        .map((r) => {
+          const details: string[] = [`${r.dateKey} — Mood: ${r.mood}`];
+          if (r.title) details.push(`Title: "${String(r.title).slice(0, 120)}"`);
+          if (r.note) details.push(`Check-in note: "${String(r.note).slice(0, 240)}"`);
+          if (r.excerpt) details.push(`Entry excerpt: "${String(r.excerpt).slice(0, 320)}"`);
+          return details.join(' | ');
+        })
+        .join('\n');
+
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: `Here are the user's recorded moods and journal notes for ${monthLabel}:\n\n${timelineText}\n\nProvide a thoughtful, grounded textual analysis of their emotional patterns for ${monthLabel}.`,
+        config: {
+          systemInstruction: [
+            'You are a thoughtful, grounded reflection analyst for Vespers, a quiet late-night personal journal.',
+            'Analyze the user’s emotional patterns across the provided month based strictly on the dates, moods, notes, and excerpts supplied.',
+            'Write 2 to 3 concise, warm paragraphs in plain prose (no markdown headers, no bullet lists, no clinical diagnoses, and no invented facts or dates).',
+            'Highlight: (1) the overarching emotional tone and recurring moods, (2) any shifts or rhythms across the month and what themes accompanied them, and (3) one gentle, encouraging observation to carry forward.',
+          ].join(' '),
+        },
+      });
+
+      const summary = (response.text ?? '').trim();
+      if (!summary) {
+        res.status(502).json({ error: 'Unable to generate a mood summary right now.' });
+        return;
+      }
+
+      res.json({ summary });
+    } catch (error) {
+      console.error('Gemini mood-summary error:', error);
+      const msg =
+        error instanceof Error
+          ? error.message
+          : 'Unable to generate emotional pattern summary.';
+      const status = msg.includes('GEMINI_API_KEY') ? 500 : 502;
+      res.status(status).json({ error: msg });
+    }
+  });
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
