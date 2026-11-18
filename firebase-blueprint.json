@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile and journal preferences stored strictly per authenticated user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the journal owner."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "User display name."
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254,
+          "description": "User email address (PII, owner-only read)."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Optional avatar URL."
+        },
+        "preferredLampWarmth": {
+          "type": "number",
+          "description": "Preferred 3D café lamp warmth setting (0.2 to 1.8)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was last updated."
+        }
+      },
+      "required": ["uid", "displayName", "email", "preferredLampWarmth", "createdAt", "updatedAt"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "A personal rich-text journal entry associated with a calendar date and mood.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Document identifier for the journal entry."
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Owner Firebase Auth UID."
+        },
+        "dateKey": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "maxLength": 10,
+          "description": "Local calendar date in YYYY-MM-DD format."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Journal entry headline."
+        },
+        "contentHtml": {
+          "type": "string",
+          "maxLength": 60000,
+          "description": "Sanitized HTML rich-text body."
+        },
+        "plainText": {
+          "type": "string",
+          "maxLength": 40000,
+          "description": "Plain-text excerpt for search and previews."
+        },
+        "wordCount": {
+          "type": "integer",
+          "description": "Word count computed on the entry body."
+        },
+        "mood": {
+          "type": "string",
+          "enum": ["serene", "reflective", "inspired", "melancholy", "restless"],
+          "maxLength": 24,
+          "description": "Mood recorded with the entry."
+        },
+        "promptUsed": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Optional evening reflection prompt used."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "dateKey",
+        "title",
+        "contentHtml",
+        "plainText",
+        "wordCount",
+        "mood",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MoodLog": {
+      "title": "MoodLog",
+      "description": "Daily evening mood check-in keyed by YYYY-MM-DD.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Owner Firebase Auth UID."
+        },
+        "dateKey": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "maxLength": 10,
+          "description": "Calendar date in YYYY-MM-DD format."
+        },
+        "mood": {
+          "type": "string",
+          "enum": ["serene", "reflective", "inspired", "melancholy", "restless"],
+          "maxLength": 24,
+          "description": "Selected evening mood."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Optional brief mood reflection note."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": ["userId", "dateKey", "mood", "note", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only user profile and café desk preferences."
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": { "$ref": "#/entities/JournalEntry" },
+      "description": "Owner-only personal journal entries."
+    },
+    "/users/{userId}/moodLogs/{dateKey}": {
+      "schema": { "$ref": "#/entities/MoodLog" },
+      "description": "Owner-only daily mood check-ins keyed by YYYY-MM-DD."
+    }
+  }
+}

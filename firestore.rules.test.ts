@@ -1,0 +1,110 @@
+/**
+ * Dirty Dozen Security Rule Verification Spec (for @firebase/rules-unit-testing)
+ * Verifies that all 12 adversarial payloads fail with PERMISSION_DENIED.
+ */
+
+export const dirtyDozenPayloads = [
+  {
+    name: '1. Unauthenticated Read',
+    auth: null,
+    op: 'get',
+    path: 'users/u1/entries/e1',
+  },
+  {
+    name: '2. Cross-User Entry Read',
+    auth: { uid: 'u2', email_verified: true },
+    op: 'get',
+    path: 'users/u1/entries/e1',
+  },
+  {
+    name: '3. Cross-User Entry Write',
+    auth: { uid: 'u2', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/e1',
+    data: { userId: 'u2', id: 'e1' },
+  },
+  {
+    name: '4. Identity Spoofing in Body',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/e1',
+    data: { userId: 'u2', id: 'e1' },
+  },
+  {
+    name: '5. Unverified Email Bypass',
+    auth: { uid: 'u1', email_verified: false },
+    op: 'create',
+    path: 'users/u1/entries/e1',
+    data: { userId: 'u1', id: 'e1' },
+  },
+  {
+    name: '6. Shadow / Ghost Field Injection',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/e1',
+    data: {
+      id: 'e1',
+      userId: 'u1',
+      dateKey: '2026-11-18',
+      title: 'Night notes',
+      contentHtml: '<p>Quiet rain.</p>',
+      plainText: 'Quiet rain.',
+      wordCount: 2,
+      mood: 'serene',
+      isAdmin: true,
+    },
+  },
+  {
+    name: '7. Orphaned Subcollection Write',
+    auth: { uid: 'u_orphan', email_verified: true },
+    op: 'create',
+    path: 'users/u_orphan/entries/e1',
+    data: { id: 'e1', userId: 'u_orphan', dateKey: '2026-11-18' },
+  },
+  {
+    name: '8. Client-Spoofed Timestamp',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/e1',
+    data: {
+      id: 'e1',
+      userId: 'u1',
+      dateKey: '2026-11-18',
+      title: 'Backdated',
+      contentHtml: '<p>Test</p>',
+      plainText: 'Test',
+      wordCount: 1,
+      mood: 'reflective',
+      createdAt: '2020-01-01T00:00:00Z',
+      updatedAt: '2020-01-01T00:00:00Z',
+    },
+  },
+  {
+    name: '9. Immutable Field Mutation',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'update',
+    path: 'users/u1/entries/e1',
+    data: { userId: 'u2' },
+  },
+  {
+    name: '10. Path Variable ID Poisoning',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/bad$id!',
+    data: { id: 'bad$id!', userId: 'u1' },
+  },
+  {
+    name: '11. Denial-of-Wallet Oversized String',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/entries/e_big',
+    data: { id: 'e_big', userId: 'u1', title: 'x'.repeat(500) },
+  },
+  {
+    name: '12. Invalid Mood Enum Poisoning',
+    auth: { uid: 'u1', email_verified: true },
+    op: 'create',
+    path: 'users/u1/moodLogs/2026-11-18',
+    data: { userId: 'u1', dateKey: '2026-11-18', mood: 'ecstatic', note: '' },
+  },
+];

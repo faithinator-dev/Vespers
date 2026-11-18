@@ -1,0 +1,6 @@
+{
+  "name": "Vespers",
+  "description": "A warm, late-night café personal journal with a calendar browser, mood tracking, rich-text writing desk, gentle streaks, and an interactive 3D café corner.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
